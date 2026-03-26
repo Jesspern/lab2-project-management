@@ -10,13 +10,11 @@ REST сервер на C++ с использованием библиотеки 
 - `POST /api/auth` — логин (получение JWT токена)
 - `GET /api/users/login/{login}` — поиск по логину
 - `GET /api/users/search?firstName=&lastName=` — поиск по имени (требует токен)
-- `DELETE /api/users/{id}` — удаление пользователя (требует ADMIN)
 - `POST /api/projects` — создание проекта (требует TRACKER/ADMIN)
 - `GET /api/projects` — список всех проектов
 - `GET /api/projects/search/{name}` — поиск проекта по имени
 - `POST /api/projects/{projectId}/tasks` — создание задачи
 - `GET /api/projects/{projectId}/tasks` — список задач проекта
-- `GET /api/tasks/{taskCode}` — получение задачи по коду
 
 ## Переменные окружения
 
