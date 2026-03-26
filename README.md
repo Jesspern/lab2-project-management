@@ -1,62 +1,28 @@
 # Project Management API
 
-REST сервер на C++ с использованием библиотеки POCO для управления проектами и задачами с ролевой авторизацией.
+REST сервер на C++ с использованием библиотеки POCO.
 
-📖 Расширенная документация — структура проекта, DTO, JWT, ролевая модель, тестирование.
-
----
+📖 [Расширенная документация](docs/README.md) — структура проекта, POCO, DTO, JWT, ролевая модель, тестирование.
 
 ## Endpoints
 
-### Аутентификация
-| Метод | Endpoint | Описание | Auth |
-|-------|----------|----------|------|
-| `POST` | `/api/users` | Регистрация пользователя | ❌ |
-| `POST` | `/api/auth` | Логин (получение JWT токена) | ❌ |
-
-### Пользователи
-| Метод | Endpoint | Описание | Auth |
-|-------|----------|----------|------|
-| `GET` | `/api/users/login/{login}` | Поиск по логину | ❌ |
-| `GET` | `/api/users/search?firstName=&lastName=` | Поиск по имени | ✅ |
-| `DELETE` | `/api/users/{id}` | Удаление пользователя | ✅ (ADMIN) |
-
-### Проекты
-| Метод | Endpoint | Описание | Auth |
-|-------|----------|----------|------|
-| `POST` | `/api/projects` | Создание проекта | ✅ (TRACKER/ADMIN) |
-| `GET` | `/api/projects` | Список всех проектов | ✅ |
-| `GET` | `/api/projects/search/{name}` | Поиск по имени | ✅ |
-
-### Задачи
-| Метод | Endpoint | Описание | Auth |
-|-------|----------|----------|------|
-| `POST` | `/api/projects/{projectId}/tasks` | Создание задачи | ✅ |
-| `GET` | `/api/projects/{projectId}/tasks` | Список задач проекта | ✅ |
-| `GET` | `/api/tasks/{taskCode}` | Задача по коду | ❌ |
-
----
-
-## Роли
-
-| Роль | Описание |
-|------|----------|
-| `GUEST` | Неавторизованный пользователь |
-| `WORKER` | Исполнитель (создание своих задач) |
-| `TRACKER` | Руководитель (управление проектами) |
-| `ADMINISTRATOR` | Полный доступ |
-
----
+- `POST /api/users` — регистрация пользователя
+- `POST /api/auth` — логин (получение JWT токена)
+- `GET /api/users/login/{login}` — поиск по логину
+- `GET /api/users/search?firstName=&lastName=` — поиск по имени (требует токен)
+- `DELETE /api/users/{id}` — удаление пользователя (требует ADMIN)
+- `POST /api/projects` — создание проекта (требует TRACKER/ADMIN)
+- `GET /api/projects` — список всех проектов
+- `GET /api/projects/search/{name}` — поиск проекта по имени
+- `POST /api/projects/{projectId}/tasks` — создание задачи
+- `GET /api/projects/{projectId}/tasks` — список задач проекта
+- `GET /api/tasks/{taskCode}` — получение задачи по коду
 
 ## Переменные окружения
 
-| Переменная | Описание | По умолчанию |
-|------------|----------|--------------|
-| `PORT` | Порт сервера | `8080` |
-| `JWT_SECRET` | Секрет для подписи JWT токенов | `dev-secret-key` |
-| `LOG_LEVEL` | Уровень логирования | `information` |
-
----
+- `PORT` — порт сервера (по умолчанию: 8080)
+- `JWT_SECRET` — секрет для подписи JWT токенов (по умолчанию: dev-secret-key)
+- `LOG_LEVEL` — уровень логирования: trace, debug, information, notice, warning, error, critical, fatal, none
 
 ## Сборка
 
@@ -64,3 +30,21 @@ REST сервер на C++ с использованием библиотеки 
 mkdir build && cd build
 cmake ..
 cmake --build .
+```
+
+##Docker
+
+```
+docker build -t lab2-jira .
+docker run -p 8080:8080 -e JWT_SECRET=your-secret-key lab2-jira
+```
+Или через docker-compose
+```
+docker compose up --build
+```
+
+##Тестирование
+
+```
+.\tests\test_api.ps1
+```
