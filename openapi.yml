@@ -1,0 +1,353 @@
+openapi: 3.0.3
+info:
+  title: Project Management API
+  description: REST API для управления проектами и задачами (Вариант 8)
+  version: 1.0.0
+  contact:
+    name: Your Name
+    email: your.email@example.com
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        login:
+          type: string
+          example: "john.doe"
+        firstName:
+          type: string
+          example: "John"
+        lastName:
+          type: string
+          example: "Doe"
+        email:
+          type: string
+          example: "john@example.com"
+        role:
+          type: string
+          enum: [GUEST, WORKER, TRACKER, ADMINISTRATOR]
+          example: "WORKER"
+    
+    LoginRequest:
+      type: object
+      required:
+        - login
+        - password
+      properties:
+        login:
+          type: string
+          example: "john.doe"
+        password:
+          type: string
+          example: "secret123"
+    
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIs..."
+        user_id:
+          type: integer
+          example: 1
+        login:
+          type: string
+          example: "john.doe"
+        role:
+          type: string
+          example: "WORKER"
+    
+    Project:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "My Project"
+        description:
+          type: string
+          example: "Project description"
+        code:
+          type: string
+          example: "PROJ-1"
+        ownerId:
+          type: integer
+          example: 1
+    
+    Task:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        code:
+          type: string
+          example: "PROJ-1-TASK-1"
+        title:
+          type: string
+          example: "Implement login"
+        description:
+          type: string
+          example: "Add JWT authentication"
+        status:
+          type: string
+          enum: [NEW, IN_PROGRESS, REVIEW, DONE, CANCELLED]
+          example: "NEW"
+        projectId:
+          type: integer
+          example: 1
+        assigneeId:
+          type: integer
+          example: 2
+        reporterId:
+          type: integer
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-03-24T19:30:00+03:00"
+    
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "validation_error"
+        message:
+          type: string
+          example: "login and password required"
+        code:
+          type: integer
+          example: 400
+
+paths:
+  /api/users:
+    post:
+      summary: Register a new user
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - login
+                - password
+                - firstName
+              properties:
+                login:
+                  type: string
+                  example: "john.doe"
+                password:
+                  type: string
+                  example: "secret123"
+                firstName:
+                  type: string
+                  example: "John"
+                lastName:
+                  type: string
+                  example: "Doe"
+                email:
+                  type: string
+                  example: "john@example.com"
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  
+  /api/auth:
+    post:
+      summary: Login and get JWT token
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  
+  /api/projects:
+    post:
+      summary: Create a new project
+      tags:
+        - Projects
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  example: "My Project"
+                description:
+                  type: string
+                  example: "Project description"
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Insufficient permissions (need TRACKER or ADMIN)
+    
+    get:
+      summary: Get all projects
+      tags:
+        - Projects
+      responses:
+        '200':
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+  
+  /api/projects/{projectId}/tasks:
+    post:
+      summary: Create a new task in project
+      tags:
+        - Tasks
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+              properties:
+                title:
+                  type: string
+                  example: "Implement feature"
+                description:
+                  type: string
+                  example: "Add new feature"
+                assigneeId:
+                  type: integer
+                  example: 2
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '401':
+          description: Not authenticated
+        '403':
+          description: Insufficient permissions
+        '404':
+          description: Project not found
+    
+    get:
+      summary: Get all tasks in project
+      tags:
+        - Tasks
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+        '401':
+          description: Not authenticated
+
+  /api/tasks/{taskCode}:
+    get:
+      summary: Get task by code
+      tags:
+        - Tasks
+      parameters:
+        - name: taskCode
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "PROJ-1-TASK-1"
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: Task not found

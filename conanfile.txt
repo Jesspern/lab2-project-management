@@ -1,0 +1,9 @@
+[requires]
+poco/1.12.0
+
+[generators]
+CMakeDeps
+CMakeToolchain
+
+[layout]
+cmake_layout

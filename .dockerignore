@@ -1,0 +1,24 @@
+# Папки сборки
+build/
+*.sln
+*.vcxproj*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Документация
+*.md
+docs/
+
+# Git
+.git/
+.gitignore
+
+# Conan (не нужен в Docker)
+conanfile.txt
+conan_toolchain.cmake
+CMakePresets.json
+conanbuild.bat
+conanrun.bat
