@@ -1,0 +1,44 @@
+CREATE TYPE user_role AS ENUM ('GUEST', 'WORKER', 'TRACKER', 'ADMINISTRATOR');
+CREATE TYPE task_status AS ENUM ('NEW', 'IN_PROGRESS', 'REVIEW', 'DONE', 'CANCELLED');
+
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    login VARCHAR(100) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100),
+    email VARCHAR(255) UNIQUE,
+    role user_role NOT NULL DEFAULT 'WORKER',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (char_length(login) >= 3)
+);
+
+CREATE TABLE IF NOT EXISTS projects (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    code VARCHAR(100) NOT NULL UNIQUE,
+    owner_id INTEGER NOT NULL REFERENCES users(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(120) NOT NULL UNIQUE,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON UPDATE CASCADE ON DELETE CASCADE,
+    assignee_id INTEGER REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL,
+    reporter_id INTEGER NOT NULL REFERENCES users(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    status task_status NOT NULL DEFAULT 'NEW',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_projects_owner_id ON projects(owner_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_assignee_id ON tasks(assignee_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_users_login ON users(login);
+CREATE INDEX IF NOT EXISTS idx_projects_active ON projects(active);

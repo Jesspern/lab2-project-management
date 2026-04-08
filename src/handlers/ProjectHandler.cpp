@@ -8,12 +8,11 @@
 #include "../handlers/middleware/AuthMiddleware.h"
 #include "ProjectHandler.h"
 #include "../models/Project.h"
-#include "../storage/Storage.h"
+#include "../database/DatabaseManager.h"
 #include <Poco/Logger.h>
 #include <Poco/Timestamp.h>
 #include <Poco/JSON/Parser.h>
 #include <Poco/URI.h>
-#include <map>
 #include <sstream>
 
 namespace handlers {
@@ -70,13 +69,18 @@ void ProjectHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
             
             // Создаём проект
             models::Project project;
-            project.id = storage::nextProjectId++;
             project.name = req.name;
             project.description = req.description;
-            project.code = "PROJ-" + std::to_string(project.id);
+            project.code = "PROJ-" + std::to_string(Poco::Timestamp().epochMicroseconds());
             project.ownerId = auth.userId;
-            
-            storage::projects[project.id] = project;
+            auto created = database::DatabaseManager::instance().createProject(project);
+            if (!created.has_value()) {
+                response.setStatus(Poco::Net::HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+                dto::ErrorResponse::create("db_error", "Failed to create project", 500)
+                    ->stringify(response.send());
+                return;
+            }
+            project = created.value();
             
             // Ответ
             response.setStatus(Poco::Net::HTTPResponse::HTTP_CREATED);
@@ -97,16 +101,15 @@ void ProjectHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
         std::string name = path.substr(21);  // "/api/projects/search/".length()
         
         Poco::JSON::Array::Ptr results = new Poco::JSON::Array();
-        for (const auto& [id, project] : storage::projects) {
-            if (project.name.find(name) != std::string::npos) {
-                Poco::JSON::Object::Ptr json = new Poco::JSON::Object();
-                json->set("id", project.id);
-                json->set("name", project.name);
-                json->set("description", project.description);
-                json->set("code", project.code);
-                json->set("ownerId", project.ownerId);
-                results->add(json);
-            }
+        auto projects = database::DatabaseManager::instance().searchProjects(name);
+        for (const auto& project : projects) {
+            Poco::JSON::Object::Ptr json = new Poco::JSON::Object();
+            json->set("id", project.id);
+            json->set("name", project.name);
+            json->set("description", project.description);
+            json->set("code", project.code);
+            json->set("ownerId", project.ownerId);
+            results->add(json);
         }
         
         response.setStatus(Poco::Net::HTTPResponse::HTTP_OK);
@@ -121,16 +124,15 @@ void ProjectHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
     // GET /api/projects — Все проекты
     else if (path == "/api/projects" && method == "GET") {
         Poco::JSON::Array::Ptr results = new Poco::JSON::Array();
-        for (const auto& [id, project] : storage::projects) {
-            if (project.active) {
-                Poco::JSON::Object::Ptr json = new Poco::JSON::Object();
-                json->set("id", project.id);
-                json->set("name", project.name);
-                json->set("description", project.description);
-                json->set("code", project.code);
-                json->set("ownerId", project.ownerId);
-                results->add(json);
-            }
+        auto projects = database::DatabaseManager::instance().getProjects(true);
+        for (const auto& project : projects) {
+            Poco::JSON::Object::Ptr json = new Poco::JSON::Object();
+            json->set("id", project.id);
+            json->set("name", project.name);
+            json->set("description", project.description);
+            json->set("code", project.code);
+            json->set("ownerId", project.ownerId);
+            results->add(json);
         }
         
         response.setStatus(Poco::Net::HTTPResponse::HTTP_OK);

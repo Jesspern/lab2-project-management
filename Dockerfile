@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     ca-certificates \
     libssl-dev \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Собираем POCO из исходников (версия 1.15.0)
@@ -18,6 +19,9 @@ RUN git clone --depth 1 --branch poco-${POCO_VERSION}-release https://github.com
 WORKDIR /build/poco
 RUN mkdir cmake-build && cd cmake-build \
     && cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DENABLE_DATA=ON \
+        -DENABLE_DATA_POSTGRESQL=ON \
+        -DENABLE_DATA_MYSQL=OFF \
     && cmake --build . --target install -j$(nproc)
 
 # Собираем приложение
@@ -34,6 +38,8 @@ FROM ubuntu:24.04 AS runner
 # Устанавливаем минимальные зависимости
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    curl \
+    libpq5 \
     && rm -rf /var/lib/apt/lists/*
 
 # Копируем библиотеки POCO из builder

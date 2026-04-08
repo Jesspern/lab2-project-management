@@ -5,7 +5,7 @@
 #include "../models/dto/CreateUserResponse.h"
 #include "../models/dto/ErrorResponse.h"
 #include "../utils/JsonHelper.h"
-#include "../storage/Storage.h"
+#include "../database/DatabaseManager.h"
 #include "middleware/AuthMiddleware.h"
 #include <Poco/Logger.h>
 #include <Poco/Timestamp.h>
@@ -14,7 +14,6 @@
 #include <Poco/JSON/Stringifier.h>
 #include <Poco/URI.h>
 #include <Poco/Exception.h>
-#include <map>
 #include <sstream>
 
 namespace handlers {
@@ -59,7 +58,7 @@ void UserHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
                   static_cast<int>(req.role));
             
             // Проверка на дубликат
-           if (storage::loginToId.find(req.login) != storage::loginToId.end()) {
+           if (database::DatabaseManager::instance().getUserByLogin(req.login).has_value()) {
                 response.setStatus(Poco::Net::HTTPResponse::HTTP_CONFLICT);
                 dto::ErrorResponse::create("conflict", "User already exists", 409)
                     ->stringify(response.send());
@@ -69,7 +68,6 @@ void UserHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
             
             // Создаём пользователя
             models::User user;
-            user.id = storage::nextUserId++;
             user.login = req.login;
             user.password = req.password;
             user.firstName = req.firstName;
@@ -77,8 +75,14 @@ void UserHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
             user.email = req.email;
             user.role = req.role;  
             
-            storage::users[user.id] = user;
-            storage::loginToId[user.login] = user.id;
+            auto created = database::DatabaseManager::instance().createUser(user);
+            if (!created.has_value()) {
+                response.setStatus(Poco::Net::HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+                dto::ErrorResponse::create("db_error", "Failed to create user", 500)
+                    ->stringify(response.send());
+                return;
+            }
+            user = created.value();
 
             logger.information("DEBUG: User saved - id=%d, login=%s, role=%s", 
                   user.id, 
@@ -110,9 +114,9 @@ void UserHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
     else if (path.find("/api/users/login/") == 0 && method == "GET") {
         std::string login = path.substr(17);  // "/api/users/login/".length() = 17
         
-        auto it = storage::loginToId.find(login);
-        if (it != storage::loginToId.end()) {
-            const auto& user = storage::users[it->second];
+        auto userOpt = database::DatabaseManager::instance().getUserByLogin(login);
+        if (userOpt.has_value()) {
+            const auto& user = userOpt.value();
             response.setStatus(Poco::Net::HTTPResponse::HTTP_OK);
             
             Poco::JSON::Object::Ptr json = new Poco::JSON::Object();
@@ -160,21 +164,15 @@ void UserHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
         std::string lastName = utils::getQueryParam(uri, "lastName", "");
         
         Poco::JSON::Array::Ptr results = new Poco::JSON::Array();
-        for (const auto& [id, user] : storage::users) {
-            bool matchFirst = firstName.empty() || 
-                user.firstName.find(firstName) != std::string::npos;
-            bool matchLast = lastName.empty() || 
-                user.lastName.find(lastName) != std::string::npos;
-            
-            if (matchFirst && matchLast) {
-                Poco::JSON::Object::Ptr json = new Poco::JSON::Object();
-                json->set("id", user.id);
-                json->set("login", user.login);
-                json->set("firstName", user.firstName);
-                json->set("lastName", user.lastName);
-                json->set("role", models::roleToString(user.role));
-                results->add(json);
-            }
+        auto users = database::DatabaseManager::instance().searchUsers(firstName, lastName);
+        for (const auto& user : users) {
+            Poco::JSON::Object::Ptr json = new Poco::JSON::Object();
+            json->set("id", user.id);
+            json->set("login", user.login);
+            json->set("firstName", user.firstName);
+            json->set("lastName", user.lastName);
+            json->set("role", models::roleToString(user.role));
+            results->add(json);
         }
         
         response.setStatus(Poco::Net::HTTPResponse::HTTP_OK);
@@ -209,21 +207,16 @@ void UserHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
         try {
             int userId = std::stoi(path.substr(13));  // "/api/users/".length() = 13
             
-            auto it = storage::users.find(userId);
-            if (it == storage::users.end()) {
+            if (!database::DatabaseManager::instance().deleteUser(userId)) {
                 response.setStatus(Poco::Net::HTTPResponse::HTTP_NOT_FOUND);
                 dto::ErrorResponse::create("not_found", "User not found", 404)
                     ->stringify(response.send());
                 return;
             }
             
-            std::string deletedLogin = it->second.login;
-            storage::loginToId.erase(deletedLogin);
-            storage::users.erase(it);
-            
             response.setStatus(Poco::Net::HTTPResponse::HTTP_NO_CONTENT);
-            logger.information("204 DELETE /api/users/%d - User %s deleted by %s", 
-                             userId, deletedLogin.c_str(), auth.login.c_str());
+            logger.information("204 DELETE /api/users/%d - deleted by %s",
+                             userId, auth.login.c_str());
             
         } catch (const std::exception& e) {
             response.setStatus(Poco::Net::HTTPResponse::HTTP_BAD_REQUEST);

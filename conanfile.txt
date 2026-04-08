@@ -5,5 +5,9 @@ poco/1.12.0
 CMakeDeps
 CMakeToolchain
 
+[options]
+poco/*:enable_data_postgresql=True
+poco/*:enable_data_mysql=False
+
 [layout]
 cmake_layout

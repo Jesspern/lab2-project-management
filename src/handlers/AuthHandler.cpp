@@ -5,7 +5,7 @@
 #include "../models/dto/LoginResponse.h"
 #include "../models/dto/ErrorResponse.h"
 #include "../utils/JsonHelper.h"
-#include "../storage/Storage.h"
+#include "../database/DatabaseManager.h"
 #include <Poco/Logger.h>
 #include <Poco/Timestamp.h>
 #include <Poco/JSON/Parser.h>
@@ -51,8 +51,8 @@ void AuthHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
             std::string password = req.password;
             
             // Проверяем пользователя
-            auto it = storage::loginToId.find(login);
-            if (it == storage::loginToId.end()) {
+            auto userOpt = database::DatabaseManager::instance().getUserByLogin(login, true);
+            if (!userOpt.has_value()) {
                 response.setStatus(Poco::Net::HTTPResponse::HTTP_UNAUTHORIZED);
                 dto::ErrorResponse::create("invalid_credentials", "User not found", 401)
                     ->stringify(response.send());
@@ -60,7 +60,7 @@ void AuthHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
                 return;
             }
             
-            const auto& user = storage::users[it->second];
+            const auto& user = userOpt.value();
 
             logger.information("DEBUG: Login - user found: id=%d, login=%s, role_in_storage=%s", 
                   user.id,

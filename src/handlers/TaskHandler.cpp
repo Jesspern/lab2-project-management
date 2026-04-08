@@ -6,7 +6,7 @@
 #include "../models/dto/ErrorResponse.h"
 #include "../utils/JsonHelper.h"
 #include "../handlers/middleware/AuthMiddleware.h"
-#include "../storage/Storage.h"
+#include "../database/DatabaseManager.h"
 #include <Poco/Logger.h>
 #include <Poco/Timestamp.h>
 #include <Poco/DateTime.h>
@@ -14,7 +14,6 @@
 #include <Poco/DateTimeFormat.h>
 #include <Poco/JSON/Parser.h>
 #include <Poco/URI.h>
-#include <map>
 #include <sstream>
 
 namespace handlers {
@@ -73,7 +72,7 @@ void TaskHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
             // ===== Конец парсинга =====
             
             // Проверяем существование проекта
-            if (storage::projects.find(projectId) == storage::projects.end()) {
+            if (!database::DatabaseManager::instance().getProjectById(projectId).has_value()) {
                 response.setStatus(Poco::Net::HTTPResponse::HTTP_NOT_FOUND);
                 dto::ErrorResponse::create("not_found", "Project not found", 404)
                     ->stringify(response.send());
@@ -96,8 +95,7 @@ void TaskHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
             
             // Создаём задачу
             models::Task task;
-            task.id = storage::nextTaskId++;
-            task.code = "PROJ-" + std::to_string(projectId) + "-TASK-" + std::to_string(task.id);
+            task.code = "PROJ-" + std::to_string(projectId) + "-TASK-" + std::to_string(Poco::Timestamp().epochMicroseconds());
             task.title = req.title;
             task.description = req.description;
             task.projectId = projectId;
@@ -105,12 +103,14 @@ void TaskHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
             task.reporterId = auth.userId;
             task.status = models::TaskStatus::NEW;
             
-            Poco::Timestamp now;
-            Poco::DateTime dt(now);
-            task.createdAt = Poco::DateTimeFormatter::format(dt, Poco::DateTimeFormat::ISO8601_FORMAT);
-            task.updatedAt = task.createdAt;
-            
-            storage::tasks[task.id] = task;
+            auto created = database::DatabaseManager::instance().createTask(task);
+            if (!created.has_value()) {
+                response.setStatus(Poco::Net::HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+                dto::ErrorResponse::create("db_error", "Failed to create task", 500)
+                    ->stringify(response.send());
+                return;
+            }
+            task = created.value();
             
             // Ответ
             response.setStatus(Poco::Net::HTTPResponse::HTTP_CREATED);
@@ -174,20 +174,19 @@ void TaskHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
             // ===== Конец парсинга =====
             
             Poco::JSON::Array::Ptr results = new Poco::JSON::Array();
-            for (const auto& [id, task] : storage::tasks) {
-                if (task.projectId == projectId) {
-                    Poco::JSON::Object::Ptr json = new Poco::JSON::Object();
-                    json->set("id", task.id);
-                    json->set("code", task.code);
-                    json->set("title", task.title);
-                    json->set("description", task.description);
-                    json->set("status", models::taskStatusToString(task.status));
-                    json->set("assigneeId", task.assigneeId);
-                    json->set("reporterId", task.reporterId);
-                    json->set("createdAt", task.createdAt);
-                    json->set("updatedAt", task.updatedAt);
-                    results->add(json);
-                }
+            auto tasks = database::DatabaseManager::instance().getTasksByProjectId(projectId);
+            for (const auto& task : tasks) {
+                Poco::JSON::Object::Ptr json = new Poco::JSON::Object();
+                json->set("id", task.id);
+                json->set("code", task.code);
+                json->set("title", task.title);
+                json->set("description", task.description);
+                json->set("status", models::taskStatusToString(task.status));
+                json->set("assigneeId", task.assigneeId);
+                json->set("reporterId", task.reporterId);
+                json->set("createdAt", task.createdAt);
+                json->set("updatedAt", task.updatedAt);
+                results->add(json);
             }
             
             response.setStatus(Poco::Net::HTTPResponse::HTTP_OK);
@@ -216,26 +215,26 @@ void TaskHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
     else if (path.find("/api/tasks/") == 0 && method == "GET") {
         std::string taskCode = path.substr(11);  // "/api/tasks/".length()
         
-        for (const auto& [id, task] : storage::tasks) {
-            if (task.code == taskCode) {
-                Poco::JSON::Object::Ptr json = new Poco::JSON::Object();
-                json->set("id", task.id);
-                json->set("code", task.code);
-                json->set("title", task.title);
-                json->set("description", task.description);
-                json->set("status", models::taskStatusToString(task.status));
-                json->set("projectId", task.projectId);
-                json->set("assigneeId", task.assigneeId);
-                json->set("reporterId", task.reporterId);
-                json->set("createdAt", task.createdAt);
-                json->set("updatedAt", task.updatedAt);
-                
-                response.setStatus(Poco::Net::HTTPResponse::HTTP_OK);
-                json->stringify(response.send());
-                
-                logger.information("200 GET /api/tasks/%s", taskCode.c_str());
-                return;
-            }
+        auto taskOpt = database::DatabaseManager::instance().getTaskByCode(taskCode);
+        if (taskOpt.has_value()) {
+            const auto& task = taskOpt.value();
+            Poco::JSON::Object::Ptr json = new Poco::JSON::Object();
+            json->set("id", task.id);
+            json->set("code", task.code);
+            json->set("title", task.title);
+            json->set("description", task.description);
+            json->set("status", models::taskStatusToString(task.status));
+            json->set("projectId", task.projectId);
+            json->set("assigneeId", task.assigneeId);
+            json->set("reporterId", task.reporterId);
+            json->set("createdAt", task.createdAt);
+            json->set("updatedAt", task.updatedAt);
+            
+            response.setStatus(Poco::Net::HTTPResponse::HTTP_OK);
+            json->stringify(response.send());
+            
+            logger.information("200 GET /api/tasks/%s", taskCode.c_str());
+            return;
         }
         
         response.setStatus(Poco::Net::HTTPResponse::HTTP_NOT_FOUND);
