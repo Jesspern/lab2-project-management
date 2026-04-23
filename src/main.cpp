@@ -9,7 +9,7 @@
 #include <chrono>
 
 #include "handlers/RouterFactory.h"
-#include "database/DatabaseManager.h"
+#include "database/MongoDBManager.h"
 
 using namespace Poco::Net;
 using namespace Poco;
@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
     
     auto& logger = Logger::get("ProjectAPI");
     logger.information("Starting Project Management API");
-    database::DatabaseManager::initialize();
+    database::MongoDBManager::initialize();
     
     // Порт из переменной окружения
     unsigned short port = 8080;
@@ -51,6 +51,6 @@ int main(int argc, char** argv) {
         std::this_thread::sleep_for(std::chrono::hours(1));
     }
     
-    database::DatabaseManager::shutdown();
+    database::MongoDBManager::shutdown();
     return 0;
 }

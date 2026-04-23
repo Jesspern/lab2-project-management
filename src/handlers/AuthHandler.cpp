@@ -5,7 +5,7 @@
 #include "../models/dto/LoginResponse.h"
 #include "../models/dto/ErrorResponse.h"
 #include "../utils/JsonHelper.h"
-#include "../database/DatabaseManager.h"
+#include "../database/MongoDBManager.h"
 #include <Poco/Logger.h>
 #include <Poco/Timestamp.h>
 #include <Poco/JSON/Parser.h>
@@ -51,7 +51,7 @@ void AuthHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
             std::string password = req.password;
             
             // Проверяем пользователя
-            auto userOpt = database::DatabaseManager::instance().getUserByLogin(login, true);
+            auto userOpt = database::MongoDBManager::instance().getUserByLogin(login, true);
             if (!userOpt.has_value()) {
                 response.setStatus(Poco::Net::HTTPResponse::HTTP_UNAUTHORIZED);
                 dto::ErrorResponse::create("invalid_credentials", "User not found", 401)

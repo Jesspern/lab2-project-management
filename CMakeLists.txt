@@ -10,18 +10,18 @@ if(CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_MAP_IMPORTED_CONFIG_MINSIZEREL Release)
 endif()
 
-# Poco DataPostgreSQL CMake config expects this imported target to exist first.
-find_package(PostgreSQL REQUIRED)
-
-find_package(Poco REQUIRED COMPONENTS Foundation Net Util JSON JWT Data DataPostgreSQL)
+find_package(Poco REQUIRED COMPONENTS Foundation Net Util JSON JWT)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBMONGOCXX REQUIRED libmongocxx)
+pkg_check_modules(LIBBSONCXX REQUIRED libbsoncxx)
 
 add_executable(jira
     src/main.cpp
     
     src/utils/JsonHelper.h
 
-    src/database/DatabaseManager.h
-    src/database/DatabaseManager.cpp
+    src/database/MongoDBManager.h
+    src/database/MongoDBManager.cpp
     
     src/models/Role.h
     src/models/User.h
@@ -53,10 +53,13 @@ target_link_libraries(jira PRIVATE
     Poco::Util
     Poco::JSON
     Poco::JWT
-    Poco::Data
-    Poco::DataPostgreSQL
+    ${LIBMONGOCXX_LIBRARIES}
+    ${LIBBSONCXX_LIBRARIES}
 )
 
+target_include_directories(jira PRIVATE ${LIBMONGOCXX_INCLUDE_DIRS} ${LIBBSONCXX_INCLUDE_DIRS})
+target_link_directories(jira PRIVATE ${LIBMONGOCXX_LIBRARY_DIRS} ${LIBBSONCXX_LIBRARY_DIRS})
+target_compile_options(jira PRIVATE ${LIBMONGOCXX_CFLAGS_OTHER} ${LIBBSONCXX_CFLAGS_OTHER})
 target_include_directories(jira PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 install(TARGETS jira DESTINATION bin)

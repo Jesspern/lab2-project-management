@@ -6,7 +6,7 @@
 #include "../models/dto/ErrorResponse.h"
 #include "../utils/JsonHelper.h"
 #include "../handlers/middleware/AuthMiddleware.h"
-#include "../database/DatabaseManager.h"
+#include "../database/MongoDBManager.h"
 #include <Poco/Logger.h>
 #include <Poco/Timestamp.h>
 #include <Poco/DateTime.h>
@@ -72,7 +72,7 @@ void TaskHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
             // ===== Конец парсинга =====
             
             // Проверяем существование проекта
-            if (!database::DatabaseManager::instance().getProjectById(projectId).has_value()) {
+            if (!database::MongoDBManager::instance().getProjectById(projectId).has_value()) {
                 response.setStatus(Poco::Net::HTTPResponse::HTTP_NOT_FOUND);
                 dto::ErrorResponse::create("not_found", "Project not found", 404)
                     ->stringify(response.send());
@@ -103,7 +103,7 @@ void TaskHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
             task.reporterId = auth.userId;
             task.status = models::TaskStatus::NEW;
             
-            auto created = database::DatabaseManager::instance().createTask(task);
+            auto created = database::MongoDBManager::instance().createTask(task);
             if (!created.has_value()) {
                 response.setStatus(Poco::Net::HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
                 dto::ErrorResponse::create("db_error", "Failed to create task", 500)
@@ -174,7 +174,7 @@ void TaskHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
             // ===== Конец парсинга =====
             
             Poco::JSON::Array::Ptr results = new Poco::JSON::Array();
-            auto tasks = database::DatabaseManager::instance().getTasksByProjectId(projectId);
+            auto tasks = database::MongoDBManager::instance().getTasksByProjectId(projectId);
             for (const auto& task : tasks) {
                 Poco::JSON::Object::Ptr json = new Poco::JSON::Object();
                 json->set("id", task.id);
@@ -215,7 +215,7 @@ void TaskHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
     else if (path.find("/api/tasks/") == 0 && method == "GET") {
         std::string taskCode = path.substr(11);  // "/api/tasks/".length()
         
-        auto taskOpt = database::DatabaseManager::instance().getTaskByCode(taskCode);
+        auto taskOpt = database::MongoDBManager::instance().getTaskByCode(taskCode);
         if (taskOpt.has_value()) {
             const auto& task = taskOpt.value();
             Poco::JSON::Object::Ptr json = new Poco::JSON::Object();

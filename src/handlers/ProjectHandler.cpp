@@ -8,7 +8,7 @@
 #include "../handlers/middleware/AuthMiddleware.h"
 #include "ProjectHandler.h"
 #include "../models/Project.h"
-#include "../database/DatabaseManager.h"
+#include "../database/MongoDBManager.h"
 #include <Poco/Logger.h>
 #include <Poco/Timestamp.h>
 #include <Poco/JSON/Parser.h>
@@ -73,7 +73,7 @@ void ProjectHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
             project.description = req.description;
             project.code = "PROJ-" + std::to_string(Poco::Timestamp().epochMicroseconds());
             project.ownerId = auth.userId;
-            auto created = database::DatabaseManager::instance().createProject(project);
+            auto created = database::MongoDBManager::instance().createProject(project);
             if (!created.has_value()) {
                 response.setStatus(Poco::Net::HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
                 dto::ErrorResponse::create("db_error", "Failed to create project", 500)
@@ -101,7 +101,7 @@ void ProjectHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
         std::string name = path.substr(21);  // "/api/projects/search/".length()
         
         Poco::JSON::Array::Ptr results = new Poco::JSON::Array();
-        auto projects = database::DatabaseManager::instance().searchProjects(name);
+        auto projects = database::MongoDBManager::instance().searchProjects(name);
         for (const auto& project : projects) {
             Poco::JSON::Object::Ptr json = new Poco::JSON::Object();
             json->set("id", project.id);
@@ -124,7 +124,7 @@ void ProjectHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
     // GET /api/projects — Все проекты
     else if (path == "/api/projects" && method == "GET") {
         Poco::JSON::Array::Ptr results = new Poco::JSON::Array();
-        auto projects = database::DatabaseManager::instance().getProjects(true);
+        auto projects = database::MongoDBManager::instance().getProjects(true);
         for (const auto& project : projects) {
             Poco::JSON::Object::Ptr json = new Poco::JSON::Object();
             json->set("id", project.id);

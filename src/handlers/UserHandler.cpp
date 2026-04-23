@@ -5,7 +5,7 @@
 #include "../models/dto/CreateUserResponse.h"
 #include "../models/dto/ErrorResponse.h"
 #include "../utils/JsonHelper.h"
-#include "../database/DatabaseManager.h"
+#include "../database/MongoDBManager.h"
 #include "middleware/AuthMiddleware.h"
 #include <Poco/Logger.h>
 #include <Poco/Timestamp.h>
@@ -58,7 +58,7 @@ void UserHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
                   static_cast<int>(req.role));
             
             // Проверка на дубликат
-           if (database::DatabaseManager::instance().getUserByLogin(req.login).has_value()) {
+           if (database::MongoDBManager::instance().getUserByLogin(req.login).has_value()) {
                 response.setStatus(Poco::Net::HTTPResponse::HTTP_CONFLICT);
                 dto::ErrorResponse::create("conflict", "User already exists", 409)
                     ->stringify(response.send());
@@ -75,7 +75,7 @@ void UserHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
             user.email = req.email;
             user.role = req.role;  
             
-            auto created = database::DatabaseManager::instance().createUser(user);
+            auto created = database::MongoDBManager::instance().createUser(user);
             if (!created.has_value()) {
                 response.setStatus(Poco::Net::HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
                 dto::ErrorResponse::create("db_error", "Failed to create user", 500)
@@ -114,7 +114,7 @@ void UserHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
     else if (path.find("/api/users/login/") == 0 && method == "GET") {
         std::string login = path.substr(17);  // "/api/users/login/".length() = 17
         
-        auto userOpt = database::DatabaseManager::instance().getUserByLogin(login);
+        auto userOpt = database::MongoDBManager::instance().getUserByLogin(login);
         if (userOpt.has_value()) {
             const auto& user = userOpt.value();
             response.setStatus(Poco::Net::HTTPResponse::HTTP_OK);
@@ -164,7 +164,7 @@ void UserHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
         std::string lastName = utils::getQueryParam(uri, "lastName", "");
         
         Poco::JSON::Array::Ptr results = new Poco::JSON::Array();
-        auto users = database::DatabaseManager::instance().searchUsers(firstName, lastName);
+        auto users = database::MongoDBManager::instance().searchUsers(firstName, lastName);
         for (const auto& user : users) {
             Poco::JSON::Object::Ptr json = new Poco::JSON::Object();
             json->set("id", user.id);
@@ -207,7 +207,7 @@ void UserHandler::handleRequest(Poco::Net::HTTPServerRequest& request,
         try {
             int userId = std::stoi(path.substr(13));  // "/api/users/".length() = 13
             
-            if (!database::DatabaseManager::instance().deleteUser(userId)) {
+            if (!database::MongoDBManager::instance().deleteUser(userId)) {
                 response.setStatus(Poco::Net::HTTPResponse::HTTP_NOT_FOUND);
                 dto::ErrorResponse::create("not_found", "User not found", 404)
                     ->stringify(response.send());

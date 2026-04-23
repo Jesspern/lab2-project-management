@@ -4,17 +4,20 @@
 #include <string>
 #include <vector>
 
-#include "../models/User.h"
 #include "../models/Project.h"
 #include "../models/Task.h"
+#include "../models/User.h"
+
+#include <mongocxx/client.hpp>
+#include <mongocxx/instance.hpp>
 
 namespace database {
 
-class DatabaseManager {
+class MongoDBManager {
 public:
     static void initialize();
     static void shutdown();
-    static DatabaseManager& instance();
+    static MongoDBManager& instance();
 
     std::optional<models::User> createUser(const models::User& user);
     std::optional<models::User> getUserByLogin(const std::string& login, bool withPassword = false);
@@ -31,7 +34,13 @@ public:
     std::optional<models::Task> getTaskByCode(const std::string& code);
 
 private:
-    DatabaseManager();
+    MongoDBManager();
+    int nextId(const std::string& counterName, const std::string& collectionName);
+    void ensureIndexes();
+
+private:
+    mongocxx::client client_;
+    mongocxx::database db_;
 };
 
 } // namespace database
